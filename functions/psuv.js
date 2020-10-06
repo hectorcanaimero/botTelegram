@@ -1,6 +1,10 @@
+/* eslint-disable promise/always-return */
+/* eslint-disable promise/no-nesting */
 const functions = require('firebase-functions');
 const admin = require("firebase-admin");
 admin.initializeApp();
+
+const now = new Date().toLocaleString("es-ES", {timeZone: "America/Caracas", timeStyle: 'short'});
 
 const Telegraf = require('telegraf');
 const Markup = require('telegraf/markup');
@@ -14,25 +18,71 @@ const handle = require('./psuv-handle');
 const bot = new Telegraf('1319035820:AAEHCW88w5aj3KSb0qdkSiT-_YlXQidgzkA');
 
 bot.on('message', (ctx) => {
-    let texto = ctx.message.text; 
+    let receive = ctx.message.text; 
+    let split = receive.split(' ');
+    let texto = split[0];
     texto = texto.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    if(texto === '/start') handle.onStart(ctx);
+    if(texto === '/start' || texto === 'start' || texto === 'hola' || texto === 'camarada') handle.onStart(ctx);
     if (texto === 'menu' || texto === '/menu' || texto === ' menu' || texto === 'menu ') handle.onMenu(ctx);
-    if(texto.split(' ')[0] === 'centro') {
-        let centro = texto.split(' ')[1]
-        if (centro) {
-            db.collection('centro').where('codigo', '==', `${centro}`).get().then((index) => {
-                // eslint-disable-next-line promise/always-return
-                if (index.empty){
-                    handle.onText(ctx, `O Codigo de Centro esta errado`)
-                }
-                index.forEach((res) => {
-                    handle.onText(ctx, `Ahora vamos a validar su identidad para el centro de votación <b>${res.data().centro}</b>.\n Digite psuv seguido de su fecha de nacimiento y su telefono:\n<b>ejemplo: psuv ${centro} 01/01/1960 04165555555</b>`)
-                })
-            }).catch((err) => console.log(err));
-        }
-    }
+    if(texto === 'data') onCNE(ctx, split);
+    if(texto === 'psuv') onPSUV(ctx, split);
 })
+
+onCNE = (ctx, texto) => {
+    const passw = parseInt(texto[1]);
+    const centro = parseInt(texto[2]);
+    const value = parseInt(texto[3]);
+    console.log(passw+ ' ' + centro + ' ' + value);
+    ctx.replyWithChatAction('typing');
+    timer(2000).subscribe(() => {
+        if (passw !== 4523) handle.onError(ctx, `Ops!!! 😱 La Contraseña es incorrecta o no estas registrado, escribe menu y seleciona la opción de sala situacional`);
+        db.collection('centro').where('codigo', '==', centro).get().then((index) => {
+            // eslint-disable-next-line promise/always-return
+            if (index.empty){
+                handle.onError(ctx, `Ops!!! 😱 La Contraseña es incorrecta o no estas registrado, escribe menu y seleciona la opción de sala situacional`);
+            }
+            index.forEach((res) =>{
+                db.collection('cne').add({ data: now, cne: value } );  
+                db.collection('centro').doc(res.id).collection('poll').orderBy('data', 'desc').limit(1).get().then((index2) => {
+                    index2.forEach((doc) => {
+                        let psuv = 0;
+                        if (doc.data().psuv) psuv = doc.data().psuv; 
+                        db.collection('centro').doc(res.id).collection('poll').add({ data: now, psuv: psuv, cne: value } );                
+                        handle.onText(ctx, `😉 Se registro el valor correctamente. 😛`);
+                    })
+                })
+                .catch((err) => console.log(err));
+            })
+        }).catch((err) => console.log(err));
+    })
+}
+
+onPSUV = (ctx, texto) => {
+    const passw = parseInt(texto[1]);
+    const value = parseInt(texto[2]);
+    ctx.replyWithChatAction('typing');
+    timer(2000).subscribe(() => {
+        db.collection('centro').where('password', '==', passw).get().then((index) => {
+            // eslint-disable-next-line promise/always-return
+            if (index.empty){
+                handle.onError(ctx, `Ops!!! 😱 La Contraseña es incorrecta o no estas registrado, escribe menu y seleciona la opción de sala situacional`);
+            }
+            index.forEach((res) =>{
+                db.collection('psuv').add({ data: now, psuv: value } );  
+                db.collection('centro').doc(res.id).collection('poll').orderBy('data', 'desc').limit(1).get().then((index2) => {
+                    index2.forEach((doc) => {
+                        let cne = 0;
+                        if (doc.data().cne) cne = doc.data().cne; 
+                        db.collection('centro').doc(res.id).collection('poll').add({ data: now, psuv: value, cne: cne } );      
+                        db.collection('total').add({ data: now, psuv: value, cne: cne } );                
+                        handle.onText(ctx, `😉 Se registro el valor correctamente. 😛`);
+                    })
+                })
+                .catch((err) => console.log(err));
+            })
+        }).catch((err) => console.log(err));
+    })
+}
 
 
 /** 

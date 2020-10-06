@@ -29,5 +29,9 @@ module.exports = {
     onText(ctx, text) {
         ctx.replyWithChatAction('typing');
         timer(1000).subscribe(() => ctx.replyWithHTML(text));
+    },
+    onError(ctx, text) {
+        ctx.replyWithChatAction('typing');
+        timer(1000).subscribe(() => ctx.replyWithHTML(text, extra={reply_markup: Markup.inlineKeyboard([Markup.callbackButton('Contactar Sala Situacional', 'call-me')])}));
     }
 }
