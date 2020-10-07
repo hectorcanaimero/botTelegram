@@ -1,0 +1,22 @@
+{
+    "name": "bottelegram",
+    "description": "Bot para Exit Poll",
+    "scripts": {
+      "lint": "eslint .",
+      "serve": "firebase serve --only functions:psuv",
+      "shell": "firebase functions:shell",
+      "start": "firebase serve --only functions:psuv",
+      "deploy": "firebase deploy --only functions:psuv",
+      "logs": "firebase functions:log"
+    },
+    "engines": {
+      "node": "10"
+    },
+    "main": "index.js",
+    "dependencies": {
+    },
+    "devDependencies": {
+    },
+    "private": true
+  }
+  

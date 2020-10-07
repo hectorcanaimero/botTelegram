@@ -4,7 +4,8 @@ const functions = require('firebase-functions');
 const admin = require("firebase-admin");
 admin.initializeApp();
 
-const now = new Date().toLocaleString("es-ES", {timeZone: "America/Caracas", timeStyle: 'short'});
+const moment = require('moment');
+const now = moment(new Date().toLocaleString('es-VE', {timeZone: "America/Caracas"}));
 
 const Telegraf = require('telegraf');
 const Markup = require('telegraf/markup');
@@ -24,7 +25,7 @@ bot.on('message', (ctx) => {
     texto = texto.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     if(texto === '/start' || texto === 'start' || texto === 'hola' || texto === 'camarada') handle.onStart(ctx);
     if (texto === 'menu' || texto === '/menu' || texto === ' menu' || texto === 'menu ') handle.onMenu(ctx);
-    if(texto === 'data') onCNE(ctx, split);
+    if(texto === 'data' || texto === 'cne') onCNE(ctx, split);
     if(texto === 'psuv') onPSUV(ctx, split);
 })
 
@@ -32,28 +33,34 @@ onCNE = (ctx, texto) => {
     const passw = parseInt(texto[1]);
     const centro = parseInt(texto[2]);
     const value = parseInt(texto[3]);
-    console.log(passw+ ' ' + centro + ' ' + value);
     ctx.replyWithChatAction('typing');
     timer(2000).subscribe(() => {
-        if (passw !== 4523) handle.onError(ctx, `Ops!!! 😱 La Contraseña es incorrecta o no estas registrado, escribe menu y seleciona la opción de sala situacional`);
-        db.collection('centro').where('codigo', '==', centro).get().then((index) => {
-            // eslint-disable-next-line promise/always-return
-            if (index.empty){
-                handle.onError(ctx, `Ops!!! 😱 La Contraseña es incorrecta o no estas registrado, escribe menu y seleciona la opción de sala situacional`);
-            }
-            index.forEach((res) =>{
-                db.collection('cne').add({ data: now, cne: value } );  
-                db.collection('centro').doc(res.id).collection('poll').orderBy('data', 'desc').limit(1).get().then((index2) => {
-                    index2.forEach((doc) => {
-                        let psuv = 0;
-                        if (doc.data().psuv) psuv = doc.data().psuv; 
-                        db.collection('centro').doc(res.id).collection('poll').add({ data: now, psuv: psuv, cne: value } );                
-                        handle.onText(ctx, `😉 Se registro el valor correctamente. 😛`);
+        if (passw === 4523 || passw === 6655) {
+            db.collection('centro').where('codigo', '==', centro).get().then((index) => {
+                // eslint-disable-next-line promise/always-return
+                if (index.empty) handle.onError(ctx, `Ops!!! 😱 La Contraseña es incorrecta o no estas registrado, escribe menu y seleciona la opción de sala situacional`);
+                index.forEach((res) =>{
+                    db.collection('centro').doc(res.id).collection('poll').orderBy('data', 'desc').limit(1).get().then((index2) => {
+                        index2.forEach((doc) => {
+                            let psuv = 0;
+                            if (doc.data().psuv) psuv = doc.data().psuv; 
+                            db.collection('centro').doc(res.id).collection('poll').add({ data: now, psuv: psuv, cne: value } );   
+                            db.collection('centro').doc(res.id).set({
+                                centro: res.data().centro,
+                                codigo: res.data().codigo,
+                                electores: res.data().electores,
+                                location: res.data().location, 
+                                total: { data: now, cne: value, psuv: psuv}
+                            } );                
+                            handle.onText(ctx, `😉 Se registro el valor correctamente. 😛`);
+                        })
                     })
+                    .catch((err) => console.log(err));
                 })
-                .catch((err) => console.log(err));
-            })
-        }).catch((err) => console.log(err));
+            }).catch((err) => console.log(err));
+        } else {
+            handle.onError(ctx, `Ops!!! 😱 La Contraseña es incorrecta o no estas registrado, escribe menu y seleciona la opción de sala situacional`);
+        }
     })
 }
 
@@ -73,8 +80,14 @@ onPSUV = (ctx, texto) => {
                     index2.forEach((doc) => {
                         let cne = 0;
                         if (doc.data().cne) cne = doc.data().cne; 
-                        db.collection('centro').doc(res.id).collection('poll').add({ data: now, psuv: value, cne: cne } );      
-                        db.collection('total').add({ data: now, psuv: value, cne: cne } );                
+                        db.collection('centro').doc(res.id).collection('poll').add({ data: now, psuv: value, cne: cne } );
+                        db.collection('centro').doc(res.id).set({
+                            centro: res.data().centro,
+                            codigo: res.data().codigo,
+                            electores: res.data().electores,
+                            location: res.data().location, 
+                            total: { data: now, cne: cne, psuv: value}
+                        } );              
                         handle.onText(ctx, `😉 Se registro el valor correctamente. 😛`);
                     })
                 })
